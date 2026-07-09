@@ -162,7 +162,10 @@ def read_excel_file(uploaded_file, file_label: str) -> pd.DataFrame:
     # Normalize column names by stripping surrounding whitespace so that
     # minor formatting inconsistencies in the source file do not cause
     # false-negative validation failures.
-    dataframe.columns = [str(col).strip() for col in dataframe.columns]
+    dataframe.columns = [
+    str(col).replace("\xa0", " ").strip()
+    for col in dataframe.columns
+]
 
     return dataframe
 
