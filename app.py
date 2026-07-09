@@ -205,11 +205,11 @@ if st.session_state.generated_excel_bytes is not None:
         f"**Matched suppliers:** {matched_count}  \n"
         f"**Missing suppliers:** {missing_count}"
     )
-        download_filename = (
-           report_title.strip()
-           .replace(" ", "_")
-           .replace("/", "-")
-           + ".xlsx"
+    download_filename = (
+        report_title.strip()
+        .replace(" ", "_")
+        .replace("/", "-")
+        + ".xlsx"
     )
     st.download_button(
         label="Download Final Report.xlsx",
