@@ -714,6 +714,6 @@ matched_df = (
         company_name, 
         assessment_year, 
         report_title
-    )
+)
 
     return excel_buffer, len(matched_df), len(missing_df)
