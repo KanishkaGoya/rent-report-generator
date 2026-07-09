@@ -709,7 +709,7 @@ matched_df = (
 )
     # Step 6: Generate the final workbook
     excel_buffer = generate_expense_report_workbook(
-        matched_df, missing_df, company_name, assessment_year, report_title
+    matched_df, missing_df, company_name, assessment_year, report_title
     )
 
     return excel_buffer, len(matched_df), len(missing_df)
