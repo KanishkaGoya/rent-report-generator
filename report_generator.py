@@ -42,6 +42,7 @@ VENDOR_MASTER_REQUIRED_COLUMNS = [
     "Name 3",
     "Name 4",
     "PostalCode",
+    "PAN",
 ]
 
 # Required headers for the Rent Report upload
@@ -228,7 +229,8 @@ def clean_vendor_master(vendor_master_df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         A cleaned copy of the DataFrame.
     """
-    df = vendor_master_df.copy()
+    # Keep only the required columns
+    df = vendor_master_df[VENDOR_MASTER_REQUIRED_COLUMNS].copy()
 
     df["Vendor"] = df["Vendor"].apply(_safe_str)
 
@@ -236,6 +238,7 @@ def clean_vendor_master(vendor_master_df: pd.DataFrame) -> pd.DataFrame:
         "City",
         "Name 1",
         "GST Registration No.",
+        "PAN",
         "Name 2",
         "Street",
         "Name 3",
@@ -487,8 +490,11 @@ def _write_supplier_block(
     vendor_code = str(vendor_row.get("Vendor", "")).strip()
     vendor_name = str(vendor_row.get("Name 1", "")).strip().upper()
     gst_number = str(vendor_row.get("GST Registration No.", "")).strip()
-    amount = vendor_row.get("Amount", 0.0)
+    pan_number = str(vendor_row.get("PAN", "")).strip()
 
+    # Use PAN if GST is blank
+    display_tax_id = gst_number if gst_number else pan_number
+    amount = vendor_row.get("Amount", 0.0)
     current_row = start_row
 
     # Main row: Vendor Code | Vendor Name | GST No | Amount
@@ -500,7 +506,7 @@ def _write_supplier_block(
     name_cell.font = SUPPLIER_NAME_FONT
     name_cell.alignment = LEFT_ALIGN
 
-    gst_cell = worksheet.cell(row=current_row, column=3, value=gst_number)
+    gst_cell = worksheet.cell(row=current_row, column=3, value=display_tax_id)
     gst_cell.font = GST_FONT
     gst_cell.alignment = LEFT_ALIGN
 
