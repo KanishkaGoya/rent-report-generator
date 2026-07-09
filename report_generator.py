@@ -1,13 +1,13 @@
 """
 report_generator.py
 
-Core business logic for the Rent Report Generator application.
+Core business logic for the Expense Report Generator application.
 
 This module handles:
-    - Reading and validating the Vendor Master and Rent Report Excel files
+    - Reading and validating the Vendor Master and expense Report Excel files
     - Cleaning and normalizing data types
     - Grouping and summing duplicate suppliers (allowing positive/negative offset)
-    - Merging Rent Report data with Vendor Master data
+    - Merging expense Report data with Vendor Master data
     - Building formatted address strings
     - Generating the final formatted Excel workbook (in-memory, via BytesIO)
     - Generating the Missing_Vendors worksheet for unmatched suppliers
@@ -45,8 +45,8 @@ VENDOR_MASTER_REQUIRED_COLUMNS = [
     "PAN",
 ]
 
-# Required headers for the Rent Report upload
-RENT_REPORT_REQUIRED_COLUMNS = [
+# Required headers for the Expense Report upload
+EXPENSE_REPORT_REQUIRED_COLUMNS = [
     "Supplier",
     "Amount",
 ]
@@ -83,12 +83,12 @@ COLUMN_WIDTHS = {
 # Custom Exceptions
 # --------------------------------------------------------------------------
 
-class RentReportError(Exception):
+class ExpenseReportError(Exception):
     """Base exception for all user-facing errors raised by this module."""
     pass
 
 
-class MissingColumnsError(RentReportError):
+class MissingColumnsError(ExpenseReportError):
     """Raised when an uploaded file is missing one or more required columns."""
 
     def __init__(self, file_label: str, missing_columns: List[str]):
@@ -102,7 +102,7 @@ class MissingColumnsError(RentReportError):
         super().__init__(message)
 
 
-class EmptyFileError(RentReportError):
+class EmptyFileError(ExpenseReportError):
     """Raised when an uploaded Excel file contains no data rows."""
 
     def __init__(self, file_label: str):
@@ -114,7 +114,7 @@ class EmptyFileError(RentReportError):
         super().__init__(message)
 
 
-class InvalidExcelFileError(RentReportError):
+class InvalidExcelFileError(ExpenseReportError):
     """Raised when an uploaded file cannot be parsed as a valid Excel file."""
 
     def __init__(self, file_label: str, original_error: str = ""):
@@ -140,7 +140,7 @@ def read_excel_file(uploaded_file, file_label: str) -> pd.DataFrame:
         uploaded_file: A Streamlit UploadedFile object (or any file-like
             object) representing the .xlsx file.
         file_label: A human-readable label for the file (used in error
-            messages), e.g. "Vendor Master" or "Rent Report".
+            messages), e.g. "Vendor Master" or "Expense Report".
 
     Returns:
         A pandas DataFrame containing the parsed Excel data.
@@ -251,9 +251,9 @@ def clean_vendor_master(vendor_master_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def clean_rent_report(rent_report_df: pd.DataFrame) -> pd.DataFrame:
+def clean_expense_report(expense_report_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Clean and normalize the Rent Report DataFrame.
+    Clean and normalize the Expense Report DataFrame.
 
     - Keeps only the 'Supplier' and 'Amount' columns (all other columns are
       ignored per specification).
@@ -261,12 +261,12 @@ def clean_rent_report(rent_report_df: pd.DataFrame) -> pd.DataFrame:
     - Converts 'Amount' to numeric, coercing invalid/blank values to 0.
 
     Args:
-        rent_report_df: Raw Rent Report DataFrame.
+        expense_report_df: Raw Expense Report DataFrame.
 
     Returns:
         A cleaned DataFrame containing only 'Supplier' and 'Amount' columns.
     """
-    df = rent_report_df[["Supplier", "Amount"]].copy()
+    df = expense_report_df[["Supplier", "Amount"]].copy()
 
     df["Supplier"] = df["Supplier"].apply(_safe_str)
 
@@ -281,23 +281,23 @@ def clean_rent_report(rent_report_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def aggregate_supplier_amounts(rent_report_df: pd.DataFrame) -> pd.DataFrame:
+def aggregate_supplier_amounts(expense_report_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Group the Rent Report by Supplier and sum the Amount column.
+    Group the Expense Report by Supplier and sum the Amount column.
 
     Positive and negative amounts for the same supplier naturally offset
     each other during summation. Suppliers whose net amount is zero are
     intentionally NOT removed - they must still appear in the final report.
 
     Args:
-        rent_report_df: Cleaned Rent Report DataFrame with 'Supplier' and
+        expense_report_df: Cleaned Expense Report DataFrame with 'Supplier' and
             'Amount' columns.
 
     Returns:
         A DataFrame with one row per unique Supplier and the summed Amount.
     """
     aggregated_df = (
-        rent_report_df.groupby("Supplier", as_index=False)["Amount"]
+        expense_report_df.groupby("Supplier", as_index=False)["Amount"]
         .sum()
         .reset_index(drop=True)
     )
@@ -308,16 +308,16 @@ def aggregate_supplier_amounts(rent_report_df: pd.DataFrame) -> pd.DataFrame:
 # Merge Logic
 # --------------------------------------------------------------------------
 
-def merge_rent_with_vendor_master(
-    aggregated_rent_df: pd.DataFrame, vendor_master_df: pd.DataFrame
+def merge_expense_with_vendor_master(
+    aggregated_expense_df: pd.DataFrame, vendor_master_df: pd.DataFrame
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Merge the aggregated Rent Report with the Vendor Master.
+    Merge the aggregated Expense Report with the Vendor Master.
 
-    Matches Supplier (Rent Report) against Vendor (Vendor Master).
+    Matches Supplier (Expense Report) against Vendor (Vendor Master).
 
     Args:
-        aggregated_rent_df: DataFrame with columns ['Supplier', 'Amount'],
+        aggregated_expense_df: DataFrame with columns ['Supplier', 'Amount'],
             one row per unique supplier with net amount.
         vendor_master_df: Cleaned Vendor Master DataFrame.
 
@@ -328,7 +328,7 @@ def merge_rent_with_vendor_master(
             missing_df: Rows where Supplier did NOT match any Vendor,
                 containing only ['Supplier', 'Amount'].
     """
-    merged_df = aggregated_rent_df.merge(
+    merged_df = aggregated_expense_df.merge(
         vendor_master_df,
         left_on="Supplier",
         right_on="Vendor",
@@ -366,7 +366,7 @@ def build_address_lines(row: pd.Series) -> List[str]:
         5. "City - PostalCode" (or just "City" if PostalCode is blank)
 
     Args:
-        row: A pandas Series representing a single merged vendor/rent row.
+        row: A pandas Series representing a single merged vendor/expense row.
             Must contain 'Name 2', 'Street', 'Name 3', 'Name 4', 'City',
             and 'PostalCode'.
 
@@ -420,7 +420,7 @@ def _write_report_header(
         worksheet: The worksheet to write into.
         company_name: Company name text.
         assessment_year: Assessment year text (e.g. "2025-26").
-        report_title: Report title text (e.g. "DETAIL OF RENT EXPENSES").
+        report_title: Report title text (e.g. "DETAIL OF EXPENSES EXPENSES").
 
     Returns:
         The next available (1-indexed) row number after the header block.
@@ -539,7 +539,7 @@ def _build_main_report_sheet(
     report_title: str,
 ) -> None:
     """
-    Build the main "Rent Report" worksheet containing the formatted header,
+    Build the main "Expense Report" worksheet containing the formatted header,
     column headers, and one block per supplier.
 
     Args:
@@ -550,7 +550,7 @@ def _build_main_report_sheet(
         report_title: Report title for the report header.
     """
     worksheet = workbook.active
-    worksheet.title = "Rent Report"
+    worksheet.title = "Expense Report"
 
     current_row = _write_report_header(
         worksheet, company_name, assessment_year, report_title
@@ -568,7 +568,7 @@ def _build_missing_vendors_sheet(
 ) -> None:
     """
     Build the "Missing_Vendors" worksheet listing suppliers present in the
-    Rent Report but not found in the Vendor Master.
+    Expense Report but not found in the Vendor Master.
 
     Args:
         workbook: The openpyxl Workbook to add the sheet to.
@@ -603,7 +603,7 @@ def _build_missing_vendors_sheet(
     worksheet.column_dimensions["B"].width = 20
 
 
-def generate_rent_report_workbook(
+def generate_expense_report_workbook(
     matched_df: pd.DataFrame,
     missing_df: pd.DataFrame,
     company_name: str,
@@ -612,7 +612,7 @@ def generate_rent_report_workbook(
 ) -> BytesIO:
     """
     Generate the complete final Excel workbook containing the formatted
-    Rent Report sheet and the Missing_Vendors sheet.
+    Expense Report sheet and the Missing_Vendors sheet.
 
     Args:
         matched_df: DataFrame of matched supplier/vendor rows (with Amount).
@@ -643,9 +643,9 @@ def generate_rent_report_workbook(
 # High-Level Orchestration
 # --------------------------------------------------------------------------
 
-def process_rent_report(
+def process_expense_report(
     vendor_master_file,
-    rent_report_file,
+    expense_report_file,
     company_name: str,
     assessment_year: str,
     report_title: str,
@@ -657,7 +657,7 @@ def process_rent_report(
 
     Args:
         vendor_master_file: Uploaded Vendor Master file (file-like object).
-        rent_report_file: Uploaded Rent Report file (file-like object).
+        expense_report_file: Uploaded Expense Report file (file-like object).
         company_name: Company name for the report header.
         assessment_year: Assessment year for the report header.
         report_title: Report title for the report header.
@@ -669,35 +669,35 @@ def process_rent_report(
             missing_count: Number of suppliers not found in Vendor Master.
 
     Raises:
-        RentReportError (or a subclass): For any validation or processing
+        ExpenseReportError (or a subclass): For any validation or processing
             failure that should be surfaced to the user as a friendly
             message.
     """
     # Step 1: Read raw files
     vendor_master_raw_df = read_excel_file(vendor_master_file, "Vendor Master")
-    rent_report_raw_df = read_excel_file(rent_report_file, "Rent Report")
+    expense_report_raw_df = read_excel_file(expense_report_file, "Expense Report")
 
     # Step 2: Validate required columns
     validate_required_columns(
         vendor_master_raw_df, VENDOR_MASTER_REQUIRED_COLUMNS, "Vendor Master"
     )
     validate_required_columns(
-        rent_report_raw_df, RENT_REPORT_REQUIRED_COLUMNS, "Rent Report"
+        expense_report_raw_df, EXPENSE_REPORT_REQUIRED_COLUMNS, "Expense Report"
     )
 
     # Step 3: Clean data
     vendor_master_df = clean_vendor_master(vendor_master_raw_df)
-    rent_report_df = clean_rent_report(rent_report_raw_df)
+    expense_report_df = clean_expense_report(expense_report_raw_df)
 
-    if rent_report_df.empty:
-        raise EmptyFileError("Rent Report")
+    if expense_report_df.empty:
+        raise EmptyFileError("Expense Report")
 
     # Step 4: Aggregate duplicate suppliers (positive/negative offsetting)
-    aggregated_rent_df = aggregate_supplier_amounts(rent_report_df)
+    aggregated_expense_df = aggregate_supplier_amounts(expense_report_df)
 
     # Step 5: Merge with Vendor Master
-    matched_df, missing_df = merge_rent_with_vendor_master(
-        aggregated_rent_df, vendor_master_df
+    matched_df, missing_df = merge_expense_with_vendor_master(
+        aggregated_expense_df, vendor_master_df
     )
     # Sort matched vendors by Amount (Highest to Lowest)
     matched_df = (
@@ -713,7 +713,7 @@ def process_rent_report(
         .reset_index(drop=True)
     )
     # Step 6: Generate the final workbook
-    excel_buffer = generate_rent_report_workbook(
+    excel_buffer = generate_expense_report_workbook(
         matched_df, missing_df, company_name, assessment_year, report_title
     )
 
