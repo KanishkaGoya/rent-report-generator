@@ -715,7 +715,10 @@ def process_expense_report(
     )
 
     # Step 3: Clean data
-    vendor_master_df = clean_vendor_master(vendor_master_raw_df)
+    vendor_master_df = (
+       vendor_master_df
+      .drop_duplicates(subset=["Vendor"], keep="first")
+    )
     expense_report_df = clean_expense_report(expense_report_raw_df)
 
     if expense_report_df.empty:
@@ -724,22 +727,37 @@ def process_expense_report(
     # Step 4: Aggregate duplicate suppliers (positive/negative offsetting)
     aggregated_expense_df = aggregate_supplier_amounts(expense_report_df)
 
-    # Step 5: Merge with Vendor Master
-    matched_df, missing_df = merge_expense_with_vendor_master(
-        aggregated_expense_df, vendor_master_df
-    )
-    # Sort matched vendors by Amount (Highest to Lowest)
-    matched_df = (
-        matched_df
-        .sort_values(by="Amount", ascending=False)
-        .reset_index(drop=True)
-    )
+   # Step 5: Use Expense Report as the base and lookup Vendor Master
 
-# Sort missing vendors by Amount (Highest to Lowest)
+   # Keep only one record per Vendor
+   vendor_lookup = (
+     vendor_master_df
+     .drop_duplicates(subset=["Vendor"], keep="first")
+     .set_index("Vendor")
+   )
+
+   # Join vendor details with aggregated expense data
+   matched_df = aggregated_expense_df.join(
+     vendor_lookup,
+     on="Supplier",
+     how="left"
+   )
+
+   # Separate missing suppliers
+   missing_df = matched_df[
+      matched_df["Vendor"].isna()
+   ][["Supplier", "Amount"]].copy()
+
+   # Keep only matched suppliers
+   matched_df = matched_df[
+      matched_df["Vendor"].notna()
+   ].copy()
+
+    # Sort missing vendors by Amount (Highest to Lowest)
     missing_df = (
-        missing_df
-        .sort_values(by="Amount", ascending=False)
-        .reset_index(drop=True)
+         missing_df
+         .sort_values(by="Amount", ascending=False)
+         .reset_index(drop=True)
     )
     # Step 6: Generate the final workbook
     excel_buffer = generate_expense_report_workbook(
