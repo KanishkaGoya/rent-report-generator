@@ -136,36 +136,62 @@ def read_excel_file(uploaded_file, file_label: str) -> pd.DataFrame:
     """
     Read an uploaded Excel file into a pandas DataFrame.
 
-    Args:
-        uploaded_file: A Streamlit UploadedFile object (or any file-like
-            object) representing the .xlsx file.
-        file_label: A human-readable label for the file (used in error
-            messages), e.g. "Vendor Master" or "Expense Report".
+    For Vendor Master:
+        - Reads the first sheet.
 
-    Returns:
-        A pandas DataFrame containing the parsed Excel data.
-
-    Raises:
-        InvalidExcelFileError: If the file cannot be parsed as valid Excel.
-        EmptyFileError: If the file contains no data rows.
+    For Expense Report:
+        - Searches all sheets and automatically selects the one
+          containing the required columns.
     """
     try:
-        # Ensure we read from the start of the stream
         uploaded_file.seek(0)
-        dataframe = pd.read_excel(uploaded_file, engine="openpyxl")
-    except Exception as exc:  # noqa: BLE001 - we intentionally catch broadly here
+
+        # Expense Report: Search all sheets
+        if file_label == "Expense Report":
+
+            excel_file = pd.ExcelFile(uploaded_file, engine="openpyxl")
+            dataframe = None
+
+            for sheet_name in excel_file.sheet_names:
+
+                df = pd.read_excel(
+                    excel_file,
+                    sheet_name=sheet_name,
+                    engine="openpyxl",
+                )
+
+                df.columns = [
+                    str(col).replace("\xa0", " ").strip()
+                    for col in df.columns
+                ]
+
+                if all(col in df.columns for col in EXPENSE_REPORT_REQUIRED_COLUMNS):
+                    dataframe = df
+                    break
+
+            if dataframe is None:
+                raise MissingColumnsError(
+                    file_label,
+                    EXPENSE_REPORT_REQUIRED_COLUMNS,
+                )
+
+        # Vendor Master: Read first sheet
+        else:
+            dataframe = pd.read_excel(
+                uploaded_file,
+                engine="openpyxl",
+            )
+
+    except Exception as exc:
         raise InvalidExcelFileError(file_label, str(exc)) from exc
 
     if dataframe is None or dataframe.empty:
         raise EmptyFileError(file_label)
 
-    # Normalize column names by stripping surrounding whitespace so that
-    # minor formatting inconsistencies in the source file do not cause
-    # false-negative validation failures.
     dataframe.columns = [
-    str(col).replace("\xa0", " ").strip()
-    for col in dataframe.columns
-]
+        str(col).replace("\xa0", " ").strip()
+        for col in dataframe.columns
+    ]
 
     return dataframe
 
