@@ -296,7 +296,6 @@ def aggregate_supplier_amounts(rent_report_df: pd.DataFrame) -> pd.DataFrame:
     aggregated_df = (
         rent_report_df.groupby("Supplier", as_index=False)["Amount"]
         .sum()
-        .sort_values("Supplier")
         .reset_index(drop=True)
     )
     return aggregated_df
@@ -694,7 +693,19 @@ def process_rent_report(
     matched_df, missing_df = merge_rent_with_vendor_master(
         aggregated_rent_df, vendor_master_df
     )
+    # Sort matched vendors by Amount (Highest to Lowest)
+    matched_df = (
+        matched_df
+        .sort_values(by="Amount", ascending=False)
+        .reset_index(drop=True)
+    )
 
+# Sort missing vendors by Amount (Highest to Lowest)
+    missing_df = (
+        missing_df
+        .sort_values(by="Amount", ascending=False)
+        .reset_index(drop=True)
+    )
     # Step 6: Generate the final workbook
     excel_buffer = generate_rent_report_workbook(
         matched_df, missing_df, company_name, assessment_year, report_title
