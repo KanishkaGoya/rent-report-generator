@@ -1,13 +1,13 @@
 """
 app.py
 
-Streamlit front-end for the Rent Report Generator application.
+Streamlit front-end for the Expense Report Generator application.
 
 This app allows a user to:
     1. Upload a Vendor Master Excel file.
-    2. Upload a Rent Report Excel file.
+    2. Upload a Expense Report Excel file.
     3. Enter Company Name, Assessment Year, and Report Title.
-    4. Click "Generate Report" to produce a formatted Rent Report Excel
+    4. Click "Generate Report" to produce a formatted Expense Report Excel
        workbook (with a Missing_Vendors sheet for unmatched suppliers).
     5. Download the resulting file.
 
@@ -20,7 +20,7 @@ import traceback
 import streamlit as st
 
 from report_generator import (
-    RentReportError,
+    ExpenseReportError,
     process_expense_report,
 )
 
@@ -92,7 +92,7 @@ vendor_master_file = st.file_uploader(
 expense_report_file = st.file_uploader(
     "Upload Expense Report (.xlsx)",
     type=["xlsx"],
-    key="rent_report_uploader",
+    key="expense_report_uploader",
     help=(
         "Excel file containing expense transaction data. Only the 'Supplier' "
         "and 'Amount' columns will be used; all other columns are ignored."
@@ -153,9 +153,9 @@ if generate_clicked:
     else:
         try:
             with st.spinner("Generating report, please wait..."):
-                excel_buffer, matched_count, missing_count = process_rent_report(
+                excel_buffer, matched_count, missing_count = process_expense_report(
                     vendor_master_file=vendor_master_file,
-                    rent_report_file=rent_report_file,
+                    expense_report_file=expense_report_file,
                     company_name=company_name,
                     assessment_year=assessment_year,
                     report_title=report_title,
@@ -177,7 +177,7 @@ if generate_clicked:
                     f"of the generated file."
                 )
 
-        except RentReportError as known_error:
+        except ExpenseReportError as known_error:
             # Friendly, user-facing errors raised deliberately by the
             # report_generator module (missing columns, empty files, etc.)
             st.error(str(known_error))
