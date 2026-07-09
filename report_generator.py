@@ -677,43 +677,44 @@ def process_expense_report(
     if expense_report_df.empty:
         raise EmptyFileError("Expense Report")
 
-# Step 4: Aggregate duplicate suppliers
-aggregated_expense_df = aggregate_supplier_amounts(expense_report_df)
+    # Step 4: Aggregate duplicate suppliers
+    aggregated_expense_df = aggregate_supplier_amounts(expense_report_df)
 
-# Step 5: Remove duplicate Vendor codes from Vendor Master
-vendor_lookup = (
-    vendor_master_df
-    .drop_duplicates(subset=["Vendor"], keep="first")
-)
+    # Step 5: Remove duplicate Vendor codes from Vendor Master
+    vendor_lookup = (
+        vendor_master_df
+        .drop_duplicates(subset=["Vendor"], keep="first")
+    )
 
-# Lookup Vendor details
-matched_df = aggregated_expense_df.merge(
-    vendor_lookup,
-    left_on="Supplier",
-    right_on="Vendor",
-    how="left"
-)
+    # Lookup Vendor details
+    matched_df = aggregated_expense_df.merge(
+        vendor_lookup,
+        left_on="Supplier",
+        right_on="Vendor",
+        how="left"
+    )
 
-# Missing suppliers
-missing_df = (
-    matched_df[matched_df["Vendor"].isna()][["Supplier", "Amount"]]
-    .sort_values(by="Amount", ascending=False)
-    .reset_index(drop=True)
-)
+    # Missing suppliers
+    missing_df = (
+        matched_df[matched_df["Vendor"].isna()][["Supplier", "Amount"]]
+        .sort_values(by="Amount", ascending=False)
+        .reset_index(drop=True)
+    )
 
-# Matched suppliers
-matched_df = (
-    matched_df[matched_df["Vendor"].notna()]
-    .sort_values(by="Amount", ascending=False)
-    .reset_index(drop=True)
-)
+    # Matched suppliers
+    matched_df = (
+        matched_df[matched_df["Vendor"].notna()]
+        .sort_values(by="Amount", ascending=False)
+        .reset_index(drop=True)
+    )
+
     # Step 6: Generate the final workbook
     excel_buffer = generate_expense_report_workbook(
-        matched_df, 
-        missing_df, 
-        company_name, 
-        assessment_year, 
-        report_title
-)
+        matched_df,
+        missing_df,
+        company_name,
+        assessment_year,
+        report_title,
+    )
 
     return excel_buffer, len(matched_df), len(missing_df)
