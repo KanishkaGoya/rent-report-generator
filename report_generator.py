@@ -276,6 +276,9 @@ def clean_vendor_master(vendor_master_df: pd.DataFrame) -> pd.DataFrame:
     ]
     for col in text_columns:
         df[col] = df[col].apply(_safe_str)
+    
+    # Keep only one record for each Vendor code
+    df = df.drop_duplicates(subset=["Vendor"], keep="first")
 
     return df
 
@@ -331,53 +334,6 @@ def aggregate_supplier_amounts(expense_report_df: pd.DataFrame) -> pd.DataFrame:
         .reset_index(drop=True)
     )
     return aggregated_df
-
-
-# --------------------------------------------------------------------------
-# Merge Logic
-# --------------------------------------------------------------------------
-
-def merge_expense_with_vendor_master(
-    aggregated_expense_df: pd.DataFrame, vendor_master_df: pd.DataFrame
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Merge the aggregated Expense Report with the Vendor Master.
-
-    Matches Supplier (Expense Report) against Vendor (Vendor Master).
-
-    Args:
-        aggregated_expense_df: DataFrame with columns ['Supplier', 'Amount'],
-            one row per unique supplier with net amount.
-        vendor_master_df: Cleaned Vendor Master DataFrame.
-
-    Returns:
-        A tuple of (matched_df, missing_df):
-            matched_df: Rows where Supplier successfully matched a Vendor,
-                containing all Vendor Master fields plus Amount.
-            missing_df: Rows where Supplier did NOT match any Vendor,
-                containing only ['Supplier', 'Amount'].
-    """
-    merged_df = aggregated_expense_df.merge(
-        vendor_master_df,
-        left_on="Supplier",
-        right_on="Vendor",
-        how="left",
-        indicator=True,
-    )
-
-    matched_mask = merged_df["_merge"] == "both"
-
-    matched_df = merged_df[matched_mask].drop(columns=["_merge"]).reset_index(
-        drop=True
-    )
-    missing_df = (
-        merged_df[~matched_mask][["Supplier", "Amount"]]
-        .reset_index(drop=True)
-    )
-
-    return matched_df, missing_df
-
-
 # --------------------------------------------------------------------------
 # Address Construction
 # --------------------------------------------------------------------------
@@ -715,50 +671,42 @@ def process_expense_report(
     )
 
     # Step 3: Clean data
-    vendor_master_df = (
-       vendor_master_df
-      .drop_duplicates(subset=["Vendor"], keep="first")
-    )
+    vendor_master_df = clean_vendor_master(vendor_master_raw_df)
     expense_report_df = clean_expense_report(expense_report_raw_df)
 
     if expense_report_df.empty:
         raise EmptyFileError("Expense Report")
 
-    # Step 4: Aggregate duplicate suppliers (positive/negative offsetting)
-    aggregated_expense_df = aggregate_supplier_amounts(expense_report_df)
+# Step 4: Aggregate duplicate suppliers
+aggregated_expense_df = aggregate_supplier_amounts(expense_report_df)
 
-   # Step 5: Use Expense Report as the base and lookup Vendor Master
+# Step 5: Remove duplicate Vendor codes from Vendor Master
+vendor_lookup = (
+    vendor_master_df
+    .drop_duplicates(subset=["Vendor"], keep="first")
+)
 
-   # Keep only one record per Vendor
-   vendor_lookup = (
-     vendor_master_df
-     .drop_duplicates(subset=["Vendor"], keep="first")
-     .set_index("Vendor")
-   )
+# Lookup Vendor details
+matched_df = aggregated_expense_df.merge(
+    vendor_lookup,
+    left_on="Supplier",
+    right_on="Vendor",
+    how="left"
+)
 
-   # Join vendor details with aggregated expense data
-   matched_df = aggregated_expense_df.join(
-     vendor_lookup,
-     on="Supplier",
-     how="left"
-   )
+# Missing suppliers
+missing_df = (
+    matched_df[matched_df["Vendor"].isna()][["Supplier", "Amount"]]
+    .sort_values(by="Amount", ascending=False)
+    .reset_index(drop=True)
+)
 
-   # Separate missing suppliers
-   missing_df = matched_df[
-      matched_df["Vendor"].isna()
-   ][["Supplier", "Amount"]].copy()
-
-   # Keep only matched suppliers
-   matched_df = matched_df[
-      matched_df["Vendor"].notna()
-   ].copy()
-
-    # Sort missing vendors by Amount (Highest to Lowest)
-    missing_df = (
-         missing_df
-         .sort_values(by="Amount", ascending=False)
-         .reset_index(drop=True)
-    )
+# Matched suppliers
+matched_df = (
+    matched_df[matched_df["Vendor"].notna()]
+    .sort_values(by="Amount", ascending=False)
+    .reset_index(drop=True)
+)
     # Step 6: Generate the final workbook
     excel_buffer = generate_expense_report_workbook(
         matched_df, missing_df, company_name, assessment_year, report_title
