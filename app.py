@@ -21,7 +21,7 @@ import streamlit as st
 
 from report_generator import (
     RentReportError,
-    process_rent_report,
+    process_expense_report,
 )
 
 
