@@ -30,7 +30,7 @@ from report_generator import (
 # --------------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="Rent Report Generator",
+    page_title="Expense Report Generator",
     page_icon="📄",
     layout="centered",
 )
@@ -42,9 +42,7 @@ st.set_page_config(
 
 DEFAULT_COMPANY_NAME = "NATIONAL ENGINEERING INDUSTRIES LIMITED"
 DEFAULT_ASSESSMENT_YEAR = "2025-26"
-DEFAULT_REPORT_TITLE = "DETAIL OF RENT EXPENSES"
-
-OUTPUT_FILENAME = "Final Report.xlsx"
+DEFAULT_REPORT_TITLE = "DETAIL OF EXPENSES"
 
 
 # --------------------------------------------------------------------------
@@ -65,11 +63,11 @@ if "missing_count" not in st.session_state:
 # UI - Title
 # --------------------------------------------------------------------------
 
-st.title("Rent Report Generator")
+st.title("Expense Report Generator")
 st.write(
-    "Upload the Vendor Master and Rent Report Excel files, fill in the "
+    "Upload the Vendor Master and Expense Report Excel files, fill in the "
     "report details below, and click **Generate Report** to produce a "
-    "formatted, downloadable Rent Report."
+    "formatted, downloadable Expense Report."
 )
 
 st.divider()
@@ -87,16 +85,16 @@ vendor_master_file = st.file_uploader(
     help=(
         "Excel file containing vendor master data with columns: Vendor, "
         "City, Name 1, GST Registration No., Name 2, Street, Name 3, "
-        "Name 4, PostalCode."
+        "Name 4, PostalCode, PAN."
     ),
 )
 
-rent_report_file = st.file_uploader(
-    "Upload Rent Report (.xlsx)",
+expense_report_file = st.file_uploader(
+    "Upload Expense Report (.xlsx)",
     type=["xlsx"],
     key="rent_report_uploader",
     help=(
-        "Excel file containing rent transaction data. Only the 'Supplier' "
+        "Excel file containing expense transaction data. Only the 'Supplier' "
         "and 'Amount' columns will be used; all other columns are ignored."
     ),
 )
@@ -141,9 +139,9 @@ if generate_clicked:
     st.session_state.missing_count = None
 
     # --- Input presence validation ---
-    if vendor_master_file is None or rent_report_file is None:
+    if vendor_master_file is None or expense_report_file is None:
         st.error(
-            "Please upload both the Vendor Master and Rent Report Excel "
+            "Please upload both the Vendor Master and Expense Report Excel "
             "files before generating the report."
         )
     elif not company_name.strip():
@@ -173,7 +171,7 @@ if generate_clicked:
 
             if missing_count > 0:
                 st.warning(
-                    f"{missing_count} supplier(s) from the Rent Report "
+                    f"{missing_count} supplier(s) from the Expense Report "
                     f"could not be matched to a Vendor Master entry. "
                     f"They have been listed in the 'Missing_Vendors' sheet "
                     f"of the generated file."
@@ -207,11 +205,16 @@ if st.session_state.generated_excel_bytes is not None:
         f"**Matched suppliers:** {matched_count}  \n"
         f"**Missing suppliers:** {missing_count}"
     )
-
+        download_filename = (
+           report_title.strip()
+           .replace(" ", "_")
+           .replace("/", "-")
+           + ".xlsx"
+    )
     st.download_button(
         label="Download Final Report.xlsx",
         data=st.session_state.generated_excel_bytes,
-        file_name=OUTPUT_FILENAME,
+        file_name=download_filename,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary",
     )
